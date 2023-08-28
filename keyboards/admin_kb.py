@@ -6,7 +6,8 @@ async def get_admin_kb():
     button1 = KeyboardButton("Добавить ключ🗝️")
     button2 = KeyboardButton("Всего ключей🗝️🗝️")
     button3 = KeyboardButton("Поменять собеседника🔁")
-    keyboard.add(button1, button2).add(button3)
+    button4 = KeyboardButton("Поменять тип ответов🔁")
+    keyboard.add(button1, button2).add(button3, button4)
     return keyboard
 
 

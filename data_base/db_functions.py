@@ -37,11 +37,8 @@ async def start_db():
     companions = await show_all_companions()
     current_companion_index = int(os.getenv('CURRENT_COMPANION_INDEX'))
     companion = dict(zip(['name', 'description', 'photo', 'prompt', 'voice'], companions[current_companion_index]))
-    print(cursor.execute("SELECT key FROM open_ai_keys"))
-    print(cursor.execute("SELECT key FROM elevenlabs_keys"))
     # os.environ['OPENAI_API_KEY'] = cursor.execute("SELECT key FROM open_ai_keys ORDER BY id LIMIT 1").fetchone()[0]
     os.environ['ELEVEN_LABS_API_KEY'] = cursor.execute("SELECT key FROM elevenlabs_keys ORDER BY id LIMIT 1").fetchone()[0]
-    print(companion)
 
 
 async def add_open_ai_key(key):
@@ -106,3 +103,6 @@ async def change_elevenlabs_current_key(chat_id):
     else:
         os.environ['ELEVEN_LABS_API_KEY'] = new_elevenlabs_api_key
 
+
+async def change_answer_type(answer_type):
+    os.environ['ANSWER_TYPE'] = answer_type

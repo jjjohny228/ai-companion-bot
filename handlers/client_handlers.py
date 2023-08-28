@@ -2,17 +2,15 @@ import os
 import openai
 from aiogram.types import InputFile
 from langchain import OpenAI, PromptTemplate
-from dotenv import find_dotenv, load_dotenv
+from dotenv import load_dotenv
 import requests
 from openai.error import RateLimitError
 from create_bot import bot, dp
 from aiogram import types, Dispatcher
-from config import HOST
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
 from aiogram.dispatcher.filters import Text
-from keyboards.admin_kb import get_admin_kb
-from keyboards.client_kb import get_client_kb, get_companion_keyboard
+from keyboards.client_kb import get_main_kb, get_companion_keyboard, get_change_answer_keyboard
 from data_base import db_functions
 from aiogram.utils.exceptions import BadRequest
 from mutagen.mp3 import MP3, HeaderNotFoundError
@@ -74,31 +72,12 @@ async def get_voice_message(message):
 async def start_command(message: types.Message):
     first_name = message.from_user.first_name if message.from_user.first_name is not None else ''
     last_name = message.from_user.last_name if message.from_user.last_name is not None else ''
-    if message.from_user.id == HOST:
-        keyboard = await get_admin_kb()
-    else:
-        keyboard = await get_client_kb()
-
     await message.answer(f'Добро пожаловать в бот, {first_name} {last_name}\n\nВыберите собеседника:',
-                         reply_markup=keyboard)
+                         reply_markup=await get_main_kb(message))
     await change_companion_command(message)
 
 
-async def talk_function(message: types.Message):
-    text_answer = await get_response_from_ai(message.text)
-    voice_answer = await get_voice_message(text_answer)
-    try:
-        audio = MP3(BytesIO(voice_answer))
-        duration = int(audio.info.length)
-        await bot.send_voice(chat_id=message.from_user.id, voice=voice_answer, duration=duration)
-    except (BadRequest, HeaderNotFoundError):
-        if voice_answer is None:
-            await db_functions.change_elevenlabs_current_key(message.from_user.id)
-        await message.answer("Попробуйте еще раз отправить сообщение")
-
-
-# Обработчик команды Text("Поменять собеседника🔁
-@dp.message_handler(Text("Поменять собеседника🔁"))
+# Обработчик команды Text("Поменять собеседника🔁")
 async def change_companion_command(message: types.Message):
     # Отправка текущего компаньона
     name, description, photo, prompt, voice = db_functions.companion.values()
@@ -108,74 +87,73 @@ async def change_companion_command(message: types.Message):
                          reply_markup=await get_companion_keyboard())
 
 
-# Обработчик callback_query
-@dp.callback_query_handler(lambda c: c.data == "select")
-async def select_callback(callback: types.CallbackQuery):
-    all_companions = await db_functions.show_all_companions()
-    current_index = int(os.getenv('CURRENT_COMPANION_INDEX'))
-    await db_functions.change_companion(dict(zip(['name', 'description', 'photo', 'prompt', 'voice'], all_companions[current_index])))
-    print(await db_functions.show_current_companion())
-    await bot.answer_callback_query(callback.id, text="Компаньон выбран!")
+# Обработчик команды Text('Поменять тип ответов🔁'))
+async def change_answer(message: types.Message):
+    await message.answer("Выберите тип ответов", reply_markup=await get_change_answer_keyboard())
 
 
-# @dp.callback_query_handler(lambda c: c.data == ("prev", "next"))
-async def prev_and_next_callback(callback: types.CallbackQuery):
-    all_companions = await db_functions.show_all_companions()
-    current_companion_index = int(os.getenv('CURRENT_COMPANION_INDEX'))
-    if current_companion_index > 0 and callback.data == "prev":
-        new_index = await db_functions.change_current_companion_index(-1)
-        await update_companion(callback, new_index, all_companions)
-        await callback.answer()
-
-    elif current_companion_index < len(all_companions) - 1 and callback.data == "next":
-        new_index = await db_functions.change_current_companion_index(1)
-        await update_companion(callback, new_index, all_companions)
-        await callback.answer()
-
+# Обработчик команды Text('Текст✍️'))
+async def text_answer_type(message: types.Message):
+    current_answer_type = os.getenv('ANSWER_TYPE')
+    if current_answer_type == 'text':
+        await message.answer("Текстовый тип уже выбран")
     else:
-        await callback.answer(text="Больше вариантов нет", show_alert=True)
+        await db_functions.change_answer_type('text')
+        await message.answer("Тип сообщений изменен", reply_markup=await get_main_kb(message))
 
 
-async def update_companion(callback, new_index, companions):
-    # Получаем информацию о текущем компаньоне
-    name, description, photo, prompt, voice = companions[new_index]
+# Обработчик команды Text('Голосовые🎙️'))
+async def voice_answer_type(message: types.Message):
+    current_answer_type = os.getenv('ANSWER_TYPE')
+    if current_answer_type == 'voice':
+        await message.answer("Голосовые уже выбраны")
+    else:
+        await db_functions.change_answer_type('voice')
+        await message.answer("Тип сообщений изменен", reply_markup=await get_main_kb(message))
 
-    # Обновляем фото и описание компаньона в существующем сообщении
-    await callback.message.edit_media(types.InputMedia(media=InputFile(photo),
-                                                       type="photo",
-                                                       caption=f"{name}\n{description}"),
-                                      reply_markup=await get_companion_keyboard())
 
-
-# Функция для обработки голосовых в текст через whisper
+# Функция для обработки голосовых сообщений
 async def voice_command(message: types.Message):
-    await message.voice.download('voice_message2.ogg')
-    with open('voice_message2.ogg', 'rb') as media_file:
+    voice_bytes = await message.voice.download()
+    print(voice_bytes.name)
+    with open(voice_bytes.name, 'rb') as media_file:
         response = openai.Audio.translate(
             api_key=os.getenv('OPENAI_API_KEY'),
             model='whisper-1',
             file=media_file,
             prompt=''
         )
-    print(response)
 
-    text_answer = await get_response_from_ai(response['text'])
-    voice_answer = await get_voice_message(text_answer)
-    try:
-        audio = MP3(BytesIO(voice_answer))
-        duration = int(audio.info.length)
-        await bot.send_voice(chat_id=message.from_user.id, voice=voice_answer, duration=duration)
-    except (BadRequest, HeaderNotFoundError):
-        if voice_answer is None:
-            await db_functions.change_elevenlabs_current_key(message.from_user.id)
-        await message.answer("Попробуйте еще раз отправить сообщение")
+    await bot_response(message, response['text'])
+
+
+async def text_command(message: types.Message):
+    await bot_response(message, message.text)
+
+
+async def bot_response(message, text):
+    if os.getenv('ANSWER_TYPE') == 'text':
+        text_answer = await get_response_from_ai(text)
+        await message.answer(text_answer)
+    elif os.getenv('ANSWER_TYPE') == 'voice':
+        text_answer = await get_response_from_ai(text)
+        voice_answer = await get_voice_message(text_answer)
+        try:
+            audio = MP3(BytesIO(voice_answer))
+            duration = int(audio.info.length)
+            await bot.send_voice(chat_id=message.from_user.id, voice=voice_answer, duration=duration)
+        except (BadRequest, HeaderNotFoundError):
+            if voice_answer is None:
+                await db_functions.change_elevenlabs_current_key(message.from_user.id)
+            await message.answer("Попробуйте еще раз отправить сообщение")
 
 
 def register_client_handlers(disp: Dispatcher):
     disp.register_message_handler(start_command, commands=['start'])
     disp.register_message_handler(change_companion_command, Text("Поменять собеседника🔁"))
-    disp.register_callback_query_handler(select_callback, lambda c: c.data == "select")
-    disp.register_callback_query_handler(prev_and_next_callback, lambda c: c.data in ("prev", "next"))
-    # disp.register_callback_query_handler(next_callback, lambda c: c.data == "next")
-    disp.register_message_handler(talk_function)
+    disp.register_message_handler(change_answer, Text('Поменять тип ответов🔁'))
+    disp.register_message_handler(text_answer_type, Text('Текст✍️'))
+    disp.register_message_handler(voice_answer_type, Text('Голосовые🎙️'))
     disp.register_message_handler(voice_command, content_types=types.ContentType.VOICE)
+
+    disp.register_message_handler(text_command)

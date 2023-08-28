@@ -1,13 +1,10 @@
-from create_bot import dp
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
 from keyboards.admin_kb import *
 from data_base.db_functions import add_open_ai_key, add_elevenlabs_key, show_all_keys
-from config import HOST
-from keyboards.client_kb import get_client_kb
-# @dp.message_handler(Text('Поменять'))
+from keyboards.client_kb import get_main_kb
 
 
 class OpenAiStatesGroup(StatesGroup):
@@ -41,7 +38,7 @@ async def not_right_openai_key(message: types.Message):
 # @dp.message_handler(state=OpenAiStatesGroup.key)
 async def key_adding(message: types.Message, state: FSMContext):
     await add_open_ai_key(message.text)
-    await message.answer("Ключ был успешно добавлен", reply_markup=await get_admin_kb())
+    await message.answer("Ключ был успешно добавлен", reply_markup=await get_main_kb(message))
     await state.finish()
 
 
@@ -59,7 +56,7 @@ async def not_right_elevenlabs_key(message: types.Message):
 # @dp.message_handler(state=ElevenlabsStatesGroup.key)
 async def elevenlabs_key_adding(message: types.Message, state: FSMContext):
     await add_elevenlabs_key(message.text)
-    await message.answer("Ключ был успешно добавлен", reply_markup=await get_admin_kb())
+    await message.answer("Ключ был успешно добавлен", reply_markup=await get_main_kb(message))
     await state.finish()
 
 
@@ -74,10 +71,7 @@ async def show_keys(message: types.Message):
 
 
 async def home_command(message: types.Message):
-    if message.from_user.id == HOST:
-        await message.answer('🏠', reply_markup=await get_admin_kb())
-    else:
-        await message.answer('🏠', reply_markup=await get_client_kb())
+        await message.answer('🏠', reply_markup=await get_main_kb(message))
 
 
 def register_admin_handlers(disp: Dispatcher):
