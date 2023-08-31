@@ -4,7 +4,6 @@ from aiogram.types import InputFile
 from langchain import OpenAI, PromptTemplate
 from dotenv import load_dotenv
 import requests
-from openai.error import RateLimitError
 from create_bot import bot, dp
 from aiogram import types, Dispatcher
 from langchain.chains import ConversationChain
@@ -68,7 +67,6 @@ async def get_voice_message(message):
         return response.content
 
 
-# @dp.message_handler(commands=['start'])
 async def start_command(message: types.Message):
     first_name = message.from_user.first_name if message.from_user.first_name is not None else ''
     last_name = message.from_user.last_name if message.from_user.last_name is not None else ''
@@ -148,6 +146,11 @@ async def bot_response(message, text):
             await message.answer("Попробуйте еще раз отправить сообщение")
 
 
+async def clear_chat_history(message: types.Message):
+    memory.clear()
+    await message.answer("История чата была удалена")
+
+
 def register_client_handlers(disp: Dispatcher):
     disp.register_message_handler(start_command, commands=['start'])
     disp.register_message_handler(change_companion_command, Text("Поменять собеседника🔁"))
@@ -155,5 +158,6 @@ def register_client_handlers(disp: Dispatcher):
     disp.register_message_handler(text_answer_type, Text('Текст✍️'))
     disp.register_message_handler(voice_answer_type, Text('Голосовые🎙️'))
     disp.register_message_handler(voice_command, content_types=types.ContentType.VOICE)
+    disp.register_message_handler(clear_chat_history, Text("Удалить память компаньена🗑"))
 
     disp.register_message_handler(text_command)

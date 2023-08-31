@@ -6,10 +6,10 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardBut
 async def get_main_kb(message):
     if str(message.from_user.id) == HOST:
         keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-        button1 = KeyboardButton("Добавить ключ🗝️")
-        button2 = KeyboardButton("Всего ключей🗝️🗝️")
-        button3 = KeyboardButton("Поменять собеседника🔁")
-        button4 = KeyboardButton("Поменять тип ответов🔁")
+        button1 = KeyboardButton("Ключи🗝️")
+        button2 = KeyboardButton("Поменять собеседника🔁️")
+        button3 = KeyboardButton("Поменять тип ответов🔁")
+        button4 = KeyboardButton("Удалить память компаньена🗑")
         keyboard.add(button1, button2).add(button3, button4)
     else:
         keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
