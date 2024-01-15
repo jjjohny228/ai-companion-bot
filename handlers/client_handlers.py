@@ -1,10 +1,13 @@
 import os
-import openai
+
+import langchain_openai
+from openai import OpenAI
 from aiogram.types import InputFile
-from langchain import OpenAI, PromptTemplate
+from langchain.prompts import PromptTemplate
+from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 import requests
-from create_bot import bot, dp
+from create_bot import bot
 from aiogram import types, Dispatcher
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
@@ -31,7 +34,7 @@ async def get_response_from_ai(human_input):
     prompt = PromptTemplate(input_variables=["history", "input"], template=template)
 
     chatgpt_chain = ConversationChain(
-        llm=OpenAI(temperature=0.2),
+        llm=ChatOpenAI(temperature=0.2, model="gpt-3.5-turbo"),
         prompt=prompt,
         verbose=True,
         memory=memory
@@ -114,15 +117,15 @@ async def voice_answer_type(message: types.Message):
 async def voice_command(message: types.Message):
     voice_bytes = await message.voice.download()
     print(voice_bytes.name)
+    client = OpenAI()
     with open(voice_bytes.name, 'rb') as media_file:
-        response = openai.Audio.translate(
-            api_key=os.getenv('OPENAI_API_KEY'),
-            model='whisper-1',
+        transcript = client.audio.transcriptions.create(
+            model="whisper-1",
             file=media_file,
-            prompt=''
+            response_format="text"
         )
 
-    await bot_response(message, response['text'])
+    await bot_response(message, transcript)
 
 
 async def text_command(message: types.Message):
